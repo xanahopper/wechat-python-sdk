@@ -131,6 +131,106 @@ class WechatBasic(WechatBase):
         signature = hashlib.sha1(data_str.encode('utf-8')).hexdigest()
         return signature
 
+    def get_snsapi_base_code(self, redirect_uri, status=None):
+        """
+        通过snsapi_base，获取兑换snsapi的access_token的code
+        :param redirect_uri: 获取openid后，重新返回的调转地址
+        :param status: 附加信息
+        :return 需要重定向的url
+        """
+        url = "https://open.weixin.qq.com/connect/oauth2/authorize"
+        data = {
+            'appid': self.conf.appid,
+            'redirect_uri': redirect_uri,
+            'response_type': 'code',
+            'scope': 'snsapi_base'
+        }
+        if status:
+            data['state'] = status
+        data = [(k, data[k]) for k in sorted(data.keys()) if data[k]]
+        s = "&".join("=".join(v) for v in data if v[1])
+        return "{0}?{1}#wechat_redirect".format(url, s)
+
+    def get_snsapi_base_access_token(self, code):
+        """
+        根据 `get_snsapi_base_code`获取到的内容中的code，换取access_token和对应的openid
+        :param code: 用于换取access_token的code
+        :return: dict类型结果
+        """
+        url = "https://api.weixin.qq.com/sns/oauth2/access_token"
+        args = {
+            'appid': self.conf.appid,
+            'secret': self.conf.appsecret,
+            'code': code,
+            'grant_type': 'authorization_code'
+        }
+
+        return requests.get(url, params=args).json()
+
+    def auth_snsapi_access_token(self, access_token, openid):
+        """
+        验证access_token和openid是否有效
+        :param access_token: 通过snsapi获取的access_token
+        :param openid: 通过snsapi获取的openid
+        :return: dict类型结果
+        """
+        url = "https://api.weixin.qq.com/sns/auth"
+        args = {
+            'access_token': access_token,
+            'openid': openid
+        }
+        return requests.get(url, params=args).json()
+
+    def refresh_snsapi_base_token(self, refresh_token):
+        """
+        刷新通过snsapi获取到的token
+        :param refresh_token: 刷新令牌，refresh_token
+        :return: dict类型结果
+        """
+        url = "https://api.weixin.qq.com/sns/oauth2/refresh_token"
+        args = {
+            'appid': self.conf.appid,
+            'grant_type': 'refresh_token',
+            'refresh_token': refresh_token
+        }
+        return requests.get(url, params=args).json()
+
+    def get_snsapi_userinfo_code(self, redirect_uri, status=None):
+        """
+        获取用户信息，一般需要显式通过用户同意,通过snsapi_base，获取兑换snsapi的access_token的code
+        :param redirect_uri: 获取openid后，重新返回的调转地址
+        :param status: 附加信息
+        :return 需要重定向的url
+        """
+        url = "https://open.weixin.qq.com/connect/oauth2/authorize"
+        data = {
+            'appid': self.conf.appid,
+            'redirect_uri': redirect_uri,
+            'response_type': 'code',
+            'scope': 'snsapi_userinfo'
+        }
+        if status:
+            data['state'] = status
+        data = [(k, data[k]) for k in sorted(data.keys()) if data[k]]
+        s = "&".join("=".join(v) for v in data if v[1])
+        return "{0}?{1}#wechat_redirect".format(url, s)
+
+    def get_snsapi_userinfo(self, access_token, openid, lang='zh_CN'):
+        """
+        获取用户信息，一般需要显式通过用户同意
+        :param access_token: 令牌
+        :param openid:
+        :param lang: 语言，默认为zh_CN
+        :return: dict类型结果
+        """
+        url = "https://api.weixin.qq.com/sns/userinfo"
+        args = {
+            'access_token': access_token,
+            'openid': openid,
+            'lang': lang
+        }
+        return requests.get(url, params=args).json()
+
     def parse_data(self, data, msg_signature=None, timestamp=None, nonce=None):
         """
         解析微信服务器发送过来的数据并保存类中
